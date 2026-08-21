@@ -37,9 +37,10 @@ FROM node:22-alpine
 # Install Caddy, wget, and gettext (envsubst for Caddyfile templating)
 RUN apk add --no-cache caddy wget gettext
 
-# Copy DSH from builder
+# Copy DSH node_modules from builder
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=builder /usr/local/bin/dsh /usr/local/bin/dsh
+# Recreate the dsh symlink — COPY follows symlinks, breaking import.meta.url
+RUN ln -sf ../lib/node_modules/@deepseek-ai/dsh/lib/bin.js /usr/local/bin/dsh
 COPY --from=builder /opt/dsh-home /opt/dsh-home
 
 # Set DSH home
