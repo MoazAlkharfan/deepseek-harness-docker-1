@@ -18,7 +18,7 @@ echo "Permission:    ${DSH_PERMISSION_MODE:-danger-full-access}"
 echo "DSH listen:    127.0.0.1:${DSH_PORT:-3079}"
 echo "Proxy listen:  :${PROXY_PORT:-3080}"
 echo "Auto-update:   ${DSH_UPDATE_ON_START:-false}"
-echo "NODE_OPTIONS:  ${NODE_OPTIONS:---expose-internals}"
+echo "HMR:           --expose-internals (direct node flag)"
 if [ -n "${PROXY_USERNAME}" ] && [ -n "${PROXY_PASSWORD}" ]; then
     echo "Basic Auth:    enabled (user: ${PROXY_USERNAME})"
 else
@@ -66,11 +66,13 @@ if [ "${DSH_UPDATE_ON_START}" = "true" ]; then
 fi
 
 # --- Start DSH web ---
-# HMR service requires Node.js --expose-internals
-export NODE_OPTIONS="--expose-internals"
+# HMR service requires Node.js --expose-internals, which Node 22+ forbids
+# via NODE_OPTIONS — must be passed directly to node. Use the real package
+# path (the /usr/local/bin/dsh symlink would break import.meta.url).
+DSH_BIN=/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
 
 echo "Starting DSH web on ${DSH_HOST:-127.0.0.1}:${DSH_PORT}..."
-dsh web \
+node --expose-internals "${DSH_BIN}" web \
     --host "${DSH_HOST:-127.0.0.1}" \
     --port "${DSH_PORT}" \
     --no-open \
