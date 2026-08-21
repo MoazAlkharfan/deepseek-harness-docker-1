@@ -1,0 +1,59 @@
+# DeepSeek Harness Docker Compose
+# ================================
+# Quick start:
+#   1. Set your API key in .env or environment
+#   2. docker compose up -d
+#   3. Open http://localhost:3080
+#
+# Environment variables:
+#   DEEPSEEK_API_KEY    - Your DeepSeek API key (required)
+#   TEAMOROUTER_API_KEY - TeamoRouter API key (optional)
+#   DSH_PORT            - DSH internal listen on 127.0.0.1 (default: 3079)
+#   PROXY_PORT          - Caddy proxy external port (default: 3080)
+#   PROXY_USERNAME      - Basic Auth username (optional)
+#   PROXY_PASSWORD      - Basic Auth password (optional)
+#   DSH_UPDATE_ON_START - set "true" to auto-update DSH on start
+
+version: "3.9"
+
+services:
+  dsh:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: deepseek-harness:latest
+    container_name: deepseek-harness
+    restart: unless-stopped
+    ports:
+      - "${PROXY_PORT:-3080}:${PROXY_PORT:-3080}"
+    environment:
+      # API keys
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - TEAMOROUTER_API_KEY=${TEAMOROUTER_API_KEY:-}
+      # DSH settings
+      - DSH_PERMISSION_MODE=danger-full-access
+      - DSH_HOST=127.0.0.1
+      - DSH_PORT=${DSH_PORT:-3079}
+      - PROXY_PORT=${PROXY_PORT:-3080}
+      # Basic Auth (optional)
+      - PROXY_USERNAME=${PROXY_USERNAME:-}
+      - PROXY_PASSWORD=${PROXY_PASSWORD:-}
+      # Auto-update DSH on container start
+      - DSH_UPDATE_ON_START=${DSH_UPDATE_ON_START:-false}
+      # Telemetry
+      - DSH_TELEMETRY_MODE=${DSH_TELEMETRY_MODE:-DISABLED}
+    volumes:
+      # Persist sessions and settings
+      - dsh_data:/opt/dsh-home
+      # Optional: mount a workspace directory
+      - ./workspace:/workspace
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:${DSH_PORT:-3079}/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  dsh_data:
+    driver: local

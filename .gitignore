@@ -1,0 +1,6 @@
+# DeepSeek Harness Docker — .gitignore
+.env
+workspace/
+.DS_Store
+*.log
+.docker/

@@ -1,0 +1,45 @@
+# Caddy reverse proxy template for DeepSeek Harness
+# ==================================================
+# Templated by entrypoint.sh using envsubst.
+# Variables:
+#   ${PROXY_PORT}      — proxy listen port (default: 3080)
+#   ${PROXY_AUTH}       — basicauth block or empty string
+#   ${DSH_PORT}         — DSH internal port (default: 3079)
+
+:${PROXY_PORT} {
+
+    ${PROXY_AUTH}
+
+    # Reverse proxy to DSH web
+    reverse_proxy 127.0.0.1:${DSH_PORT} {
+        transport http {
+            read_timeout 300s
+            write_timeout 300s
+        }
+    }
+
+    # Enable WebSocket support for HMR and live updates
+    @websockets {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    reverse_proxy @websockets 127.0.0.1:${DSH_PORT}
+
+    # Logging
+    log {
+        output stdout
+        format json
+    }
+
+    # Security headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        -Server
+    }
+
+    # Request body size for file uploads
+    request_body {
+        max_size 100MB
+    }
+}

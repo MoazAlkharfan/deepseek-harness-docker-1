@@ -1,0 +1,11 @@
+# DeepSeek Harness Docker — .dockerignore
+node_modules
+.git
+.gitignore
+.env
+*.md
+.DS_Store
+workspace/
+.github/
+docker-compose.yml
+.env.example
