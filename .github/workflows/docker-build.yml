@@ -1,13 +1,13 @@
 # GitHub Actions: Build and Push DeepSeek Harness Docker Image
 # ============================================================
 # Triggers:
-#   - Push to main/master branch
-#   - Daily schedule (midnight UTC)
-#   - Manual workflow dispatch
+#   - Push to main/master (Docker-related files only)
+#   - Daily schedule (midnight UTC) — fresh DSH version
+#   - Manual workflow_dispatch
 #
 # Pushes to:
-#   - Docker Hub: docker.io/<secrets.DOCKERHUB_USERNAME>/deepseek-harness
-#   - GHCR:       ghcr.io/<github.repository_owner>/deepseek-harness
+#   - GHCR:       ghcr.io/<owner>/deepseek-harness  (always)
+#   - Docker Hub: docker.io/<user>/deepseek-harness  (if DOCKERHUB_USERNAME/TOKEN set)
 
 name: Docker Build & Push
 
@@ -22,18 +22,13 @@ on:
       - 'entrypoint.sh'
       - '.github/workflows/docker-build.yml'
   schedule:
-    # Daily at 00:00 UTC — picks up latest DSH releases
     - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       dsh_version:
-        description: 'DSH version to install (e.g. 0.1.0-rc.7, or "latest")'
+        description: 'DSH version to install (e.g. latest, 0.1.0-rc.7)'
         required: false
         default: 'latest'
-
-env:
-  REGISTRY_IMAGE_DH: ${{ secrets.DOCKERHUB_USERNAME }}/deepseek-harness
-  REGISTRY_IMAGE_GHCR: ghcr.io/${{ github.repository_owner }}/deepseek-harness
 
 jobs:
   build-and-push:
@@ -46,20 +41,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # --- Docker Hub login ---
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      # --- Check Docker Hub availability ---
+      - name: Check Docker Hub secrets
+        id: dockerhub
+        run: |
+          if [ -n "$DH_USER" ] && [ -n "$DH_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Docker Hub secrets not set — pushing only to GHCR"
+          fi
+        env:
+          DH_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+          DH_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # --- GHCR login ---
+      # --- GHCR login (always) ---
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -67,25 +66,38 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # --- Docker Hub login (conditional) ---
+      - name: Login to Docker Hub
+        if: steps.dockerhub.outputs.available == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # --- Build images list ---
+      - name: Build images list
+        id: images
+        run: |
+          IMAGES="ghcr.io/${{ github.repository_owner }}/deepseek-harness"
+          if [ "${{ steps.dockerhub.outputs.available }}" = "true" ]; then
+            IMAGES="${{ secrets.DOCKERHUB_USERNAME }}/deepseek-harness"$'\n'"$IMAGES"
+          fi
+          echo "list<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$IMAGES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       # --- Metadata ---
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ${{ env.REGISTRY_IMAGE_DH }}
-            ${{ env.REGISTRY_IMAGE_GHCR }}
+          images: ${{ steps.images.outputs.list }}
           tags: |
-            # Branch-based tags
             type=ref,event=branch
-            # Semver tags from git tags
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # Latest tag
             type=raw,value=latest,enable={{is_default_branch}}
-            # Date-based tag for scheduled builds
             type=schedule,pattern={{date 'YYYYMMDD'}}
-            # Manual dispatch version tag
             type=raw,value=${{ inputs.dsh_version }},enable=${{ github.event_name == 'workflow_dispatch' }}
 
       # --- Build and Push ---
@@ -94,7 +106,7 @@ jobs:
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -102,4 +114,4 @@ jobs:
           cache-to: type=gha,mode=max
           build-args: |
             DSH_VERSION=${{ inputs.dsh_version || 'latest' }}
-            CACHE_BUST=${{ github.run_id }}
+            CACHE_BUST=${{ github.event_name == 'schedule' && github.run_id || '0' }}
