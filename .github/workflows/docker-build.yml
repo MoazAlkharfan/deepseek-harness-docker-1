@@ -38,9 +38,6 @@ on:
         type: boolean
         default: true
 
-env:
-  SMOKE_IMAGE: ghcr.io/${{ github.repository_owner }}/deepseek-harness:latest
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -134,10 +131,19 @@ jobs:
       - name: Smoke test — run container and curl
         id: smoke
         env:
-          DEBUG: ${{ inputs.debug || github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
+          DEBUG_MODE: ${{ inputs.debug == true && 'true' || 'false' }}
         run: |
           set -x
+          DEBUG="${DEBUG_MODE:-false}"
           docker info > /dev/null 2>&1 || { echo "ERROR: docker daemon unavailable"; exit 1; }
+
+          # Pick a GHCR :latest tag from metadata output (lowercase, local-loaded)
+          SMOKE_IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | tr ' ' '\n' | grep '^ghcr.io/' | grep ':latest$' | head -1)
+          if [ -z "$SMOKE_IMAGE" ]; then
+            SMOKE_IMAGE=$(echo "${{ steps.meta.outputs.tags }}" | tr ' ' '\n' | grep '^ghcr.io/' | head -1)
+          fi
+          echo "SMOKE_IMAGE=$SMOKE_IMAGE"
+          echo "smoke_image=${SMOKE_IMAGE}" >> "$GITHUB_OUTPUT"
 
           echo "=== Starting container from ${SMOKE_IMAGE} ==="
           docker run -d --name dsh-smoke \
@@ -162,13 +168,21 @@ jobs:
             sleep 2
           done
 
+          curl_flags="-sS -i --max-time 5"
+          if [ "$DEBUG" = "true" ]; then curl_flags="-v --max-time 5 -sS"; fi
+
           echo "=== curl http://127.0.0.1:3080/ (proxy) ==="
-          curl -sS -i --max-time 5 http://127.0.0.1:3080/ > proxy-response.txt 2>&1 || true
+          curl $curl_flags http://127.0.0.1:3080/ > proxy-response.txt 2>&1 || true
           head -40 proxy-response.txt || true
 
           echo "=== curl http://127.0.0.1:3079/ (DSH direct) ==="
-          curl -sS -i --max-time 5 http://127.0.0.1:3079/ > dsh-response.txt 2>&1 || true
+          curl $curl_flags http://127.0.0.1:3079/ > dsh-response.txt 2>&1 || true
           head -40 dsh-response.txt || true
+
+          if [ "$DEBUG" = "true" ]; then
+            echo "=== docker inspect (debug) ==="
+            docker inspect dsh-smoke | head -60 || true
+          fi
 
           # Verify it looks like a web page
           page_ok=0
