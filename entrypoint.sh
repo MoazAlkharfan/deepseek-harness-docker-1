@@ -4,12 +4,12 @@ set -e
 # ============================================================
 # DeepSeek Harness Docker Entrypoint
 # ============================================================
-# 1. Write credentials from env vars
-# 2. Generate Caddyfile from template (with optional Basic Auth)
+# 1. Generate Caddyfile from template (with optional Basic Auth)
+# 2. Optionally update DSH to latest
 # 3. Start DSH web on 127.0.0.1:${DSH_PORT}
 # 4. Start Caddy on :${PROXY_PORT}
 #
-# Passwordless mode: DSH_PERMISSION_MODE=danger-full-access
+# API keys are configured directly in the DSH Web UI.
 
 echo "=== DeepSeek Harness Docker ==="
 echo "DSH Home:      ${DSH_HOME:-/opt/dsh-home}"
@@ -27,25 +27,6 @@ echo "================================"
 
 # Ensure DSH home directories exist
 mkdir -p "${DSH_HOME}/sessions" "${DSH_HOME}/storages" "${DSH_HOME}/profiles"
-
-# --- Credentials ---
-CREDS_FILE="${DSH_HOME}/.credentials.yaml"
-CREDS_CONTENT=""
-if [ -n "${DEEPSEEK_API_KEY}" ]; then
-    CREDS_CONTENT="DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}"
-fi
-if [ -n "${TEAMOROUTER_API_KEY}" ]; then
-    if [ -n "${CREDS_CONTENT}" ]; then
-        CREDS_CONTENT="${CREDS_CONTENT}, TEAMOROUTER_API_KEY: ${TEAMOROUTER_API_KEY}"
-    else
-        CREDS_CONTENT="TEAMOROUTER_API_KEY: ${TEAMOROUTER_API_KEY}"
-    fi
-fi
-if [ -n "${CREDS_CONTENT}" ]; then
-    echo "Writing credentials to ${CREDS_FILE}..."
-    mkdir -p "${DSH_HOME}"
-    echo "{ ${CREDS_CONTENT} }" > "${CREDS_FILE}"
-fi
 
 # --- Generate Caddyfile ---
 DSH_PORT="${DSH_PORT:-3079}"
