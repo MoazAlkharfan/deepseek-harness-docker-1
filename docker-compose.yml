@@ -9,6 +9,7 @@
 #   PROXY_PORT          - Caddy proxy external port (default: 3080)
 #   PROXY_USERNAME      - Basic Auth username (optional)
 #   PROXY_PASSWORD      - Basic Auth password (optional)
+#   DSH_TRUSTED_HOSTS   - LAN IP/domain of this deployment (for /api via proxy)
 #   DSH_UPDATE_ON_START - set "true" to auto-update DSH on start
 
 version: "3.9"
@@ -30,6 +31,7 @@ services:
       - PROXY_PORT=${PROXY_PORT:-3080}
       - PROXY_USERNAME=${PROXY_USERNAME:-}
       - PROXY_PASSWORD=${PROXY_PASSWORD:-}
+      - DSH_TRUSTED_HOSTS=${DSH_TRUSTED_HOSTS:-}
       - DSH_UPDATE_ON_START=${DSH_UPDATE_ON_START:-false}
       - DSH_TELEMETRY_MODE=${DSH_TELEMETRY_MODE:-DISABLED}
     volumes:
