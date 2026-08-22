@@ -40,8 +40,14 @@ RUN node /inject-polyfill.js && rm /inject-polyfill.js
 
 FROM node:22-alpine
 
-# Install Caddy, wget, and gettext (envsubst for Caddyfile templating)
-RUN apk add --no-cache caddy wget gettext
+# Install Caddy, wget, gettext (envsubst for Caddyfile templating),
+# plus everyday utilities for debugging/administration inside the container
+RUN apk add --no-cache \
+    caddy wget gettext \
+    bash curl jq git \
+    vim nano \
+    procps coreutils findutils grep sed gawk \
+    openssl ca-certificates
 
 # Copy DSH node_modules from builder
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
