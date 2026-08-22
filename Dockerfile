@@ -31,6 +31,34 @@ RUN --mount=type=cache,target=/root/.npm,sharing=locked \
 ENV DSH_HOME=/opt/dsh-home
 RUN mkdir -p "$DSH_HOME/profiles" "$DSH_HOME/sessions" "$DSH_HOME/storages"
 
+# Inject a crypto.randomUUID() polyfill into the frontend index.html.
+# Browsers only expose crypto.randomUUID() in secure contexts (HTTPS/localhost);
+# on plain HTTP LAN access (e.g. http://192.168.x.x) it is undefined and breaks
+# the UI. We polyfill it with crypto.getRandomValues (available in insecure
+# contexts) to generate RFC-4122 v4 UUIDs.
+RUN node -e '
+    const fs = require("fs");
+    const { execSync } = require("child_process");
+    const candidates = [
+      "/usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html",
+      "/usr/local/lib/node_modules/@deepseek-ai/dsh-web-frontend/dist/index.html"
+    ];
+    let indexFile = candidates.find((p) => fs.existsSync(p));
+    if (!indexFile) {
+      indexFile = execSync("find /usr/local/lib/node_modules -path \"*dsh-web-frontend/dist/index.html\" | head -1").toString().trim();
+    }
+    if (!indexFile) { console.error("WARNING: frontend index.html not found, skipping polyfill"); process.exit(0); }
+    let html = fs.readFileSync(indexFile, "utf8");
+    if (!html.includes("randomUUID polyfill")) {
+      const polyfill = "<script>\n/* crypto.randomUUID polyfill for non-secure contexts (LAN HTTP) */\n(function(){if(typeof crypto.randomUUID!==\"function\"){crypto.randomUUID=function(){var b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h=Array.from(b,function(x){return x.toString(16).padStart(2,\"0\")});return h.join(\"\").replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/,\"$1-$2-$3-$4-$5\")};}})();\n</script>\n";
+      html = html.replace("</head>", polyfill + "</head>");
+      fs.writeFileSync(indexFile, html);
+      console.log("Polyfill injected into " + indexFile);
+    } else {
+      console.log("Polyfill already present in " + indexFile);
+    }
+'
+
 
 FROM node:22-alpine
 

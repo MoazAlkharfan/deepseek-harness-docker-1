@@ -191,6 +191,15 @@ jobs:
             echo "PAGE_OK=true" >> "$GITHUB_OUTPUT"
           fi
 
+          # Verify the crypto.randomUUID polyfill was injected into index.html
+          polyfill_ok=0
+          if grep -q "randomUUID polyfill" proxy-response.txt 2>/dev/null; then
+            polyfill_ok=1
+            echo "POLYFILL_OK=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "WARNING: crypto.randomUUID polyfill NOT found in served index.html"
+          fi
+
           echo "=== docker ps ==="
           docker ps --filter name=dsh-smoke
 
@@ -200,7 +209,7 @@ jobs:
             exit 1
           fi
 
-          echo "::notice::Smoke test PASSED — page reachable through Caddy proxy"
+          echo "::notice::Smoke test PASSED — page reachable through Caddy proxy (polyfill_ok=$polyfill_ok)"
 
       # --- Always keep container logs for debugging ---
       - name: Dump container logs (debug)
