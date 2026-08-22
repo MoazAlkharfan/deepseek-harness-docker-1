@@ -69,32 +69,16 @@ fi
 # HMR service requires Node.js --expose-internals, which Node 22+ forbids
 # via NODE_OPTIONS — must be passed directly to node. Use the real package
 # path (the /usr/local/bin/dsh symlink would break import.meta.url).
+# No --trusted-host is needed: Caddy rewrites Host/Origin to loopback
+# upstream, so every /api request (settings/credentials included) is already
+# seen as loopback by DSH — LAN access works with zero configuration.
 DSH_BIN=/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
 
-# Build --trusted-host args for DSH's /api browser-trust fence.
-# When accessed over LAN through Caddy, the Host header carries the LAN IP
-# (e.g. 192.168.0.105:3080), which is NOT trusted by default (loopback only)
-# and every /api call would 403. Collect:
-#   1) $DSH_TRUSTED_HOSTS — comma/space-separated authorities (recommended)
-#   2) this container's own non-loopback IPv4 addresses (host networking)
-TRUSTED_ARGS=""
-for h in $(
-    { echo "${DSH_TRUSTED_HOSTS:-}" | tr ', ' '\n\n'; hostname -I 2>/dev/null | tr ' ' '\n'; } \
-        | sed '/^$/d' | sort -u
-); do
-    TRUSTED_ARGS="${TRUSTED_ARGS} --trusted-host ${h}"
-done
-if [ -n "${TRUSTED_ARGS}" ]; then
-    echo "Trusted hosts:${TRUSTED_ARGS}"
-fi
-
 echo "Starting DSH web on ${DSH_HOST:-127.0.0.1}:${DSH_PORT}..."
-# shellcheck disable=SC2086  # TRUSTED_ARGS intentionally word-splits into flags
 node --expose-internals "${DSH_BIN}" web \
     --host "${DSH_HOST:-127.0.0.1}" \
     --port "${DSH_PORT}" \
     --no-open \
-    ${TRUSTED_ARGS} \
     &
 DSH_PID=$!
 
