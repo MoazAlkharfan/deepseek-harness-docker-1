@@ -34,9 +34,12 @@ docker run -d -p 3080:3080 -v dsh-data:/opt/dsh-home ghcr.io/simonqvq/deepseek-h
 
 ### 局域网访问（重要）
 
-DSH 的 `/api` 接口有**浏览器信任围栏**：默认只接受 `localhost`/`127.0.0.1`。通过局域网 IP 访问（如 `http://192.168.0.105:3080`）时，所有 `/api` 请求会返回 `HTTP 403`。
+DSH 的 `/api` 接口有**浏览器信任围栏**：默认只接受 `localhost`/`127.0.0.1`，且 `settings.*`、`credentials.*` 等敏感接口**仅限回环访问**。本镜像已通过两层机制解除该限制，局域网 HTTP 访问开箱即用：
 
-解决：启动时声明你的访问地址：
+1. **Caddy 回环呈现** —— 反向代理把上游 `Host`/`Origin` 改写为 `127.0.0.1:${DSH_PORT}`，使所有敏感 API 放行（同 `dsh-web-startup-auth` 思路，无登录层）。
+2. **浏览器端回环对齐** —— 注入脚本把 `connection.isLoopback` 置为 `true`，使设置面板（提供方目录/API Key 配置）可用。
+
+如果直接用 `dsh web` 直连（不经 Caddy），则仍需声明访问地址：
 
 ```bash
 docker run -d -p 3080:3080 \
@@ -44,8 +47,6 @@ docker run -d -p 3080:3080 \
   -v dsh-data:/opt/dsh-home \
   ghcr.io/simonqvq/deepseek-harness:latest
 ```
-
-Caddy 会将请求 Host 原样转发给 DSH，因此只需填写你访问的 IP（不带端口）。
 
 ## 使用方式
 

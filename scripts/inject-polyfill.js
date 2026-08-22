@@ -43,12 +43,72 @@ if (html.includes("randomUUID polyfill")) {
   process.exit(0);
 }
 
-const POLYFILL = `<script>
+const RANDOM_UUID_POLYFILL = `<script>
 /* crypto.randomUUID polyfill for non-secure contexts (LAN HTTP) */
 (function(){if(typeof crypto.randomUUID!=="function"){crypto.randomUUID=function(){var b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h=Array.from(b,function(x){return x.toString(16).padStart(2,"0")});return h.join("").replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/,"$1-$2-$3-$4-$5")};}})();
 </script>
 `;
 
-html = html.replace("</head>", POLYFILL + "</head>");
+// Browser-side isLoopback override.
+//
+// DSH's browser half derives connection.isLoopback from the address-bar
+// hostname (dsh-client-connection). A remote browser (LAN IP / domain) is
+// "non-loopback", so ui-settings builds its describe mirror in memory mode
+// and the provider directory fails with "settings are unavailable in this
+// browser". The Caddy proxy already presents requests upstream as loopback
+// (header_up Host/Origin), so align the browser side here: wrap the module
+// loader so the connection plugin's apply flips isLoopback to true the
+// moment it returns, before cordis notifies any dependent fiber. Same
+// technique as dsh-web-startup-auth.
+const IS_LOOPBACK_OVERRIDE = `<script>
+/* Present remote browsers as loopback so settings/credentials become available */
+(function(){
+  function installIsLoopbackOverride() {
+    var loader = window.__ModuleLoader__
+    if (!loader || loader.__isLoopbackHooked) return false
+    // The HTML-installed facade starts in "queue" mode and only becomes
+    // "live" once ClientModuleSystem.create() replaces load(); wrapping the
+    // queue-mode load would be discarded by the replacement.
+    if (loader.mode !== 'live') return false
+    loader.__isLoopbackHooked = true
+    var origLoad = loader.load.bind(loader)
+    loader.load = function (handoff) {
+      var factory = handoff && handoff.factory
+      if (typeof factory === 'function') {
+        handoff.factory = function (require) {
+          var exports = factory(require)
+          var apply = exports && exports.apply
+          if (typeof apply === 'function') {
+            exports.apply = function (ctx) {
+              var result = apply(ctx)
+              try {
+                var connection = ctx && ctx.get && ctx.get('connection')
+                if (connection) {
+                  Object.defineProperty(connection, 'isLoopback', {
+                    configurable: true,
+                    get: function () { return true }
+                  })
+                }
+              } catch (error) {}
+              return result
+            }
+          }
+          return exports
+        }
+      }
+      return origLoad(handoff)
+    }
+    return true
+  }
+  // Keep retrying: the boot entry may load asynchronously after this script.
+  function tryInstallIsLoopbackOverride() {
+    if (!installIsLoopbackOverride()) setTimeout(tryInstallIsLoopbackOverride, 0)
+  }
+  tryInstallIsLoopbackOverride()
+})()
+</script>
+`;
+
+html = html.replace("</head>", RANDOM_UUID_POLYFILL + IS_LOOPBACK_OVERRIDE + "</head>");
 fs.writeFileSync(indexFile, html);
 console.log("Polyfill injected into " + indexFile);

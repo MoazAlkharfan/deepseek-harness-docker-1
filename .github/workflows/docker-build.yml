@@ -202,12 +202,22 @@ jobs:
             echo "WARNING: crypto.randomUUID polyfill NOT found in served index.html"
           fi
 
-          # LAN scenario: Caddy forwards the Host header untouched, so DSH sees
-          # a non-loopback Host and the /api browser-trust fence must accept it
-          # because DSH_TRUSTED_HOSTS declared it (otherwise every /api call 403s).
-          echo "=== LAN Host fence test (/api with Host: 192.168.0.105) ==="
+          # Verify the browser-side isLoopback override was injected too
+          loopback_ok=0
+          if grep -q "isLoopbackOverride\|__isLoopbackHooked\|installIsLoopbackOverride" proxy-response.txt 2>/dev/null; then
+            loopback_ok=1
+            echo "LOOPBACK_OVERRIDE_OK=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "WARNING: isLoopback override NOT found in served index.html"
+          fi
+
+          # LAN scenario: privileged /api domains (settings.describe,
+          # credentials.*) are loopback-only by design (empty trust list).
+          # Caddy rewrites Host/Origin upstream to 127.0.0.1:$DSH_PORT, so with
+          # a LAN Host header the fence must NOT 403 anymore.
+          echo "=== LAN Host fence test (privileged /api with Host: 192.168.0.105) ==="
           api_code=$(curl -s -o /tmp/api-response.txt -w "%{http_code}" --max-time 5 \
-            -H "Host: 192.168.0.105" http://127.0.0.1:3080/api/host.listDirectory 2>/dev/null || echo "000")
+            -H "Host: 192.168.0.105" http://127.0.0.1:3080/api/settings.describe 2>/dev/null || echo "000")
           echo "lan_api_http=$api_code" | tee -a "$GITHUB_OUTPUT"
           echo "--- /api response head ---"
           head -5 /tmp/api-response.txt || true
@@ -217,7 +227,7 @@ jobs:
             echo "FENCE_OK=true" >> "$GITHUB_OUTPUT"
             echo "LAN Host fence PASSED (HTTP $api_code, not 403)"
           else
-            echo "::error::LAN Host fence FAILED — /api returned HTTP $api_code (expected non-403 with DSH_TRUSTED_HOSTS=192.168.0.105)"
+            echo "::error::LAN Host fence FAILED — /api returned HTTP $api_code (expected non-403 with loopback rewrite)"
           fi
 
           echo "=== docker ps ==="
@@ -234,7 +244,7 @@ jobs:
             exit 1
           fi
 
-          echo "::notice::Smoke test PASSED — page reachable through Caddy proxy (polyfill_ok=$polyfill_ok fence_ok=$fence_ok)"
+          echo "::notice::Smoke test PASSED — page reachable through Caddy proxy (polyfill_ok=$polyfill_ok loopback_ok=$loopback_ok fence_ok=$fence_ok)"
 
       # --- Always keep container logs for debugging ---
       - name: Dump container logs (debug)

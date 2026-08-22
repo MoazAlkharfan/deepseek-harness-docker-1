@@ -10,12 +10,21 @@
 
     ${PROXY_AUTH}
 
-    # Reverse proxy to DSH web
+    # Reverse proxy to DSH web.
+    # DSH's privileged /api domains (settings.*, credentials.*, agentPreset.*,
+    # llm.discoverModels, …) are loopback-only by design: they pass the
+    # browser-trust fence with an EMPTY trust list, so a LAN Host header
+    # (e.g. 192.168.0.105) would 403 even with DSH_TRUSTED_HOSTS set. Rewrite
+    # Host/Origin to DSH's own loopback authority so remote browsers behind
+    # the proxy are treated as loopback (same approach as dsh-web-startup-auth
+    # — without the login layer, since password protection is optional here).
     reverse_proxy 127.0.0.1:${DSH_PORT} {
         transport http {
             read_timeout 300s
             write_timeout 300s
         }
+        header_up Host 127.0.0.1:${DSH_PORT}
+        header_up Origin http://127.0.0.1:${DSH_PORT}
     }
 
     # Enable WebSocket support for HMR and live updates
@@ -23,7 +32,10 @@
         header Connection *Upgrade*
         header Upgrade websocket
     }
-    reverse_proxy @websockets 127.0.0.1:${DSH_PORT}
+    reverse_proxy @websockets 127.0.0.1:${DSH_PORT} {
+        header_up Host 127.0.0.1:${DSH_PORT}
+        header_up Origin http://127.0.0.1:${DSH_PORT}
+    }
 
     # Logging
     log {
