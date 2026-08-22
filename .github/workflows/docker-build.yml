@@ -24,6 +24,7 @@ on:
       - 'Dockerfile'
       - 'Caddyfile.template'
       - 'entrypoint.sh'
+      - 'scripts/**'
       - '.github/workflows/docker-build.yml'
   schedule:
     - cron: '0 0 * * *'
