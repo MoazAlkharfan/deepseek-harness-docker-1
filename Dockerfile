@@ -47,8 +47,10 @@ FROM ${BASE_IMAGE}
 # Install Caddy (Debian official repo — trixie ships caddy 2.9), wget, gettext
 # (envsubst for Caddyfile templating), everyday utilities for
 # debugging/administration, and a development toolchain (Python, CMake,
-# GCC/Clang-friendly build essentials) for running agent code inside the
-# container.
+# GCC build essentials) for running agent code inside the container.
+# pip stays at the distro version — it cannot be upgraded in place (PEP 668
+# / no RECORD file) — but the global.break-system-packages flag lets you
+# `pip install` system-wide without venvs.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         caddy wget gettext \
         bash curl jq git \
@@ -58,8 +60,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake build-essential \
         zip unzip \
     && rm -rf /var/lib/apt/lists/* \
-    && python3 -m pip config set global.break-system-packages true \
-    && python3 -m pip install --no-cache-dir -U pip
+    && python3 -m pip config set global.break-system-packages true
 
 # Copy DSH node_modules from builder
 COPY --from=builder /usr/local/lib/node_modules /usr/local/lib/node_modules
