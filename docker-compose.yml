@@ -22,6 +22,7 @@ services:
     container_name: deepseek-harness
     restart: unless-stopped
     ports:
+      - 3081:3081
       - "${PROXY_PORT:-3080}:${PROXY_PORT:-3080}"
     environment:
       - DSH_PERMISSION_MODE=danger-full-access
