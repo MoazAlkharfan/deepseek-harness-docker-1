@@ -41,9 +41,9 @@ RUN mkdir -p "$DSH_HOME/profiles" "$DSH_HOME/sessions" "$DSH_HOME/storages"
 COPY scripts/inject-polyfill.js /inject-polyfill.js
 RUN node /inject-polyfill.js && rm /inject-polyfill.js
 
-RUN dsh plugin --profile web add dshmarket
-
 FROM ${BASE_IMAGE}
+
+RUN corepack enable && corepack install -g pnpm
 
 # Install Caddy (Debian official repo — trixie ships caddy 2.9), wget, gettext
 # (envsubst for Caddyfile templating), everyday utilities for
@@ -97,5 +97,5 @@ RUN mkdir -p /workspace
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:${DSH_PORT:-3079}/ || exit 1
-
+    
 ENTRYPOINT ["/entrypoint.sh"]
