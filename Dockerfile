@@ -41,6 +41,7 @@ RUN mkdir -p "$DSH_HOME/profiles" "$DSH_HOME/sessions" "$DSH_HOME/storages"
 COPY scripts/inject-polyfill.js /inject-polyfill.js
 RUN node /inject-polyfill.js && rm /inject-polyfill.js
 
+RUN dsh plugin --profile web add dshmarket
 
 FROM ${BASE_IMAGE}
 
