@@ -75,6 +75,8 @@ fi
 DSH_BIN=/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
 
 echo "Starting DSH web on ${DSH_HOST:-127.0.0.1}:${DSH_PORT}..."
+node --expose-internals "${DSH_BIN}" plugin --profile web add dshmarket
+
 node --expose-internals "${DSH_BIN}" web \
     --host "${DSH_HOST:-127.0.0.1}" \
     --port "${DSH_PORT}" \
