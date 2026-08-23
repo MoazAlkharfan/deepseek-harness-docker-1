@@ -25,7 +25,7 @@ services:
       - "${PROXY_PORT:-3080}:${PROXY_PORT:-3080}"
     environment:
       - DSH_PERMISSION_MODE=danger-full-access
-      - DSH_HOST=127.0.0.1
+      - DSH_HOST=${DSH_HOST}
       - DSH_PORT=${DSH_PORT:-3079}
       - PROXY_PORT=${PROXY_PORT:-3080}
       - PROXY_USERNAME=${PROXY_USERNAME:-}
